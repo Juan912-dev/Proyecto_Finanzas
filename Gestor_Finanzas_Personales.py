@@ -74,6 +74,10 @@ class GestorFinanzas:
         else:
             return f"No se encontró un movimiento con ID {id_movimiento}."
 
+    def eliminar_movimiento(self, id_movimiento):
+        sql = "DELETE FROM transacciones WHERE id = %s"
+        self.cursor.execute(sql, (id_movimiento,))
+        self.db.commit()
 
 
 ctk.set_appearance_mode("Dark") # Opciones: "System", "Dark", "Light"
@@ -105,6 +109,13 @@ class AplicacionGUI(ctk.CTk):
 
         self.btn_gasto = ctk.CTkButton(self.frame_menu, text="Registrar Gasto", fg_color="#C0392B", hover_color="#922B21", command=self.simular_gasto)
         self.btn_gasto.grid(row=2, column=0, padx=20, pady=10)
+
+        # Botones de Modificar y Eliminar
+        self.btn_modificar = ctk.CTkButton(self.frame_menu, text="Modificar Selección", fg_color="#F39C12", hover_color="#D68910", command=self.modificar_seleccion)
+        self.btn_modificar.grid(row=3, column=0, padx=20, pady=10)
+
+        self.btn_eliminar = ctk.CTkButton(self.frame_menu, text="Eliminar Selección", fg_color="#8E44AD", hover_color="#732D91", command=self.eliminar_seleccion)
+        self.btn_eliminar.grid(row=4, column=0, padx=20, pady=10)
 
         # ==========================================
         # PANEL PRINCIPAL (Saldo y Tabla)
@@ -211,8 +222,136 @@ class AplicacionGUI(ctk.CTk):
         btn_guardar.pack(pady=15)
 
     def simular_gasto(self):
-        print("Botón Gasto presionado. Aquí abriremos una ventana para cargar datos.")
+        ventana_gasto = ctk.CTkToplevel(self)
+        ventana_gasto.title("Registrar Gasto")
+        ventana_gasto.geometry("350x350")
+        ventana_gasto.attributes("-topmost", True) # Mantiene la ventana al frente
 
+        titulo = ctk.CTkLabel(ventana_gasto, text="Nuevo Gasto", font=ctk.CTkFont(size=20, weight="bold"))
+        titulo.pack(pady=(20, 10))
+
+        label_categoria = ctk.CTkLabel(ventana_gasto, text="Categoría (ej. Comida, Transporte):")
+        label_categoria.pack(pady=(10, 0))
+        entrada_categoria = ctk.CTkEntry(ventana_gasto, width=250)
+        entrada_categoria.pack(pady=5)
+
+        label_cantidad = ctk.CTkLabel(ventana_gasto, text="Monto ($):")
+        label_cantidad.pack(pady=(10, 0))
+        entrada_cantidad = ctk.CTkEntry(ventana_gasto, width=250)
+        entrada_cantidad.pack(pady=5)
+
+        label_error = ctk.CTkLabel(ventana_gasto, text="", text_color="red")
+        label_error.pack(pady=5)
+
+        def guardar_gasto():
+            categoria = entrada_categoria.get().strip().capitalize()
+            
+            if not categoria:
+                label_error.configure(text="La categoría no puede estar vacía.")
+                return
+
+            try:
+                cantidad = float(entrada_cantidad.get())
+                if cantidad <= 0:
+                    label_error.configure(text="El monto debe ser mayor a 0.")
+                    return
+
+                if cantidad > self.gestor.obtener_saldo():
+                    label_error.configure(text="Error: No hay suficiente saldo para este gasto.")
+                    return
+                
+                fecha = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                self.gestor.registrar_movimiento("gasto", categoria, cantidad, fecha)
+                
+                self.actualizar_pantalla()
+                ventana_gasto.destroy()
+
+            except ValueError:
+                label_error.configure(text="Error: Ingrese solo números válidos.")
+
+        boton_guardar = ctk.CTkButton(ventana_gasto, text="Guardar Gasto", command=guardar_gasto)
+        boton_guardar.pack(pady=15)
+
+    def eliminar_seleccion(self):
+        seleccion = self.tabla.selection()
+        if not seleccion:
+            print("Selecciona un movimiento de la tabla primero.")
+            return
+        
+        # Obtenemos los datos de la fila seleccionada (el ID está en la posición 0)
+        valores_fila = self.tabla.item(seleccion[0])['values']
+        id_movimiento = valores_fila[0]
+        
+        # Eliminamos de la base de datos y refrescamos
+        self.gestor.eliminar_movimiento(id_movimiento)
+        self.actualizar_pantalla()
+
+    def modificar_seleccion(self):
+        seleccion = self.tabla.selection()
+        if not seleccion:
+            print("Selecciona un movimiento de la tabla primero.")
+            return
+
+        # Extraemos los datos actuales
+        valores_fila = self.tabla.item(seleccion[0])['values']
+        id_mov = valores_fila[0]
+        tipo_actual = valores_fila[1].lower() # Lo pasamos a minúscula para que coincida ("ingreso" o "gasto")
+        cat_actual = valores_fila[2]
+        cant_actual = str(valores_fila[3]).replace("$", "")
+
+        ventana_mod = ctk.CTkToplevel(self)
+        ventana_mod.title("Modificar Movimiento")
+        ventana_mod.geometry("350x420") # Hicimos la ventana un poco más alta
+        ventana_mod.attributes("-topmost", True)
+
+        ctk.CTkLabel(ventana_mod, text=f"Modificando ID: {id_mov}", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(20, 10))
+
+        # --- NUEVO: Menú desplegable para el Tipo ---
+        ctk.CTkLabel(ventana_mod, text="Tipo de Movimiento:").pack(pady=(5, 0))
+        opcion_tipo = ctk.CTkOptionMenu(ventana_mod, values=["ingreso", "gasto"])
+        opcion_tipo.set(tipo_actual) # Deja seleccionado el tipo que ya tenía
+        opcion_tipo.pack(pady=5)
+        # --------------------------------------------
+
+        ctk.CTkLabel(ventana_mod, text="Nueva Categoría:").pack(pady=(10, 0))
+        entrada_categoria = ctk.CTkEntry(ventana_mod, width=250)
+        entrada_categoria.insert(0, cat_actual)
+        entrada_categoria.pack(pady=5)
+
+        ctk.CTkLabel(ventana_mod, text="Nuevo Monto ($):").pack(pady=(10, 0))
+        entrada_cantidad = ctk.CTkEntry(ventana_mod, width=250)
+        entrada_cantidad.insert(0, cant_actual)
+        entrada_cantidad.pack(pady=5)
+
+        label_error = ctk.CTkLabel(ventana_mod, text="", text_color="red")
+        label_error.pack(pady=5)
+
+        def guardar_cambios():
+            # Capturamos también el valor del menú desplegable
+            nuevo_tipo = opcion_tipo.get()
+            nueva_cat = entrada_categoria.get().strip()
+            
+            if not nueva_cat:
+                label_error.configure(text="La categoría no puede estar vacía.")
+                return
+
+            try:
+                nueva_cant = float(entrada_cantidad.get())
+                if nueva_cant <= 0:
+                    label_error.configure(text="El monto debe ser mayor a 0.")
+                    return
+                
+                # Ahora sí enviamos los 4 parámetros que espera la base de datos
+                self.gestor.modificar_movimiento(id_mov, nuevo_tipo, nueva_cat, nueva_cant)
+                
+                self.actualizar_pantalla()
+                ventana_mod.destroy()
+
+            except ValueError:
+                label_error.configure(text="Error: Ingrese solo números válidos.")
+
+        ctk.CTkButton(ventana_mod, text="Guardar Cambios", command=guardar_cambios).pack(pady=15)
 
 backend_db = GestorFinanzas()
 
