@@ -154,7 +154,61 @@ class AplicacionGUI(ctk.CTk):
             self.tabla.insert("", "end", values=mov_formateado)
 
     def simular_ingreso(self):
-        print("Botón Ingreso presionado. Aquí abriremos una ventana para cargar datos.")
+        # 1. Crear la ventana emergente
+        ventana_ingreso = ctk.CTkToplevel(self)
+        ventana_ingreso.title("Registrar Ingreso")
+        ventana_ingreso.geometry("350x350")
+        ventana_ingreso.attributes("-topmost", True) # Mantiene la ventana al frente
+        
+        # 2. Elementos de la interfaz (Campos de texto)
+        titulo = ctk.CTkLabel(ventana_ingreso, text="Nuevo Ingreso", font=ctk.CTkFont(size=20, weight="bold"))
+        titulo.pack(pady=(20, 10))
+
+        label_categoria = ctk.CTkLabel(ventana_ingreso, text="Categoría (ej. Sueldo, Venta):")
+        label_categoria.pack(pady=(10, 0))
+        entrada_categoria = ctk.CTkEntry(ventana_ingreso, width=250)
+        entrada_categoria.pack(pady=5)
+
+        label_cantidad = ctk.CTkLabel(ventana_ingreso, text="Monto ($):")
+        label_cantidad.pack(pady=(10, 0))
+        entrada_cantidad = ctk.CTkEntry(ventana_ingreso, width=250)
+        entrada_cantidad.pack(pady=5)
+        
+        # Etiqueta oculta para mostrar errores de validación
+        label_error = ctk.CTkLabel(ventana_ingreso, text="", text_color="red")
+        label_error.pack(pady=5)
+
+        # 3. Función interna para procesar el guardado
+        def guardar_ingreso():
+            categoria = entrada_categoria.get().strip()
+            
+            if not categoria:
+                label_error.configure(text="La categoría no puede estar vacía.")
+                return
+
+            try:
+                # Validamos que sea un número positivo
+                cantidad = float(entrada_cantidad.get())
+                if cantidad <= 0:
+                    label_error.configure(text="El monto debe ser mayor a 0.")
+                    return
+                
+                # Si todo está bien, generamos fecha y enviamos a MySQL
+                import datetime as dt
+                fecha = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                self.gestor.registrar_movimiento("ingreso", categoria, cantidad, fecha)
+                
+                # Refrescamos la pantalla principal y cerramos la ventana
+                self.actualizar_pantalla()
+                ventana_ingreso.destroy()
+
+            except ValueError:
+                label_error.configure(text="Error: Ingrese solo números válidos.")
+
+        # 4. Botón de confirmación
+        btn_guardar = ctk.CTkButton(ventana_ingreso, text="Guardar Ingreso", command=guardar_ingreso)
+        btn_guardar.pack(pady=15)
 
     def simular_gasto(self):
         print("Botón Gasto presionado. Aquí abriremos una ventana para cargar datos.")
