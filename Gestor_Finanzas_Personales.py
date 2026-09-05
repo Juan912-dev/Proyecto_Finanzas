@@ -50,17 +50,27 @@ class GestorFinanzas:
 
     def mostrar_movimientos(self):
         # Leemos todos los registros guardados en la tabla
-        self.cursor.execute("SELECT tipo, categoria, cantidad, fecha FROM transacciones ORDER BY fecha DESC")
+        self.cursor.execute("SELECT id, tipo, categoria, cantidad, fecha FROM transacciones ORDER BY fecha DESC")
         movimientos = self.cursor.fetchall()
 
         print("\n--- Historial de Movimientos ---")
         if not movimientos:
             print("No hay movimientos registrados en la base de datos.")
         else:
-            for tipo, categoria, cantidad, fecha in movimientos:
-                print(f"  - {tipo.capitalize()}: ${cantidad} ({categoria}) el {fecha}")
+            for id_tx, tipo, categoria, cantidad, fecha in movimientos:
+                print(f"[{id_tx}]  - {tipo.capitalize()}: ${cantidad} ({categoria}) el {fecha}")
         print("--------------------------------\n")
 
+    def modificar_movimiento(self, id_movimiento, nuevo_tipo, nueva_categoria, nueva_cantidad):
+        sql= "UPDATE transacciones SET tipo = %s, categoria = %s, cantidad = %s WHERE id = %s"
+        valores = (nuevo_tipo, nueva_categoria, nueva_cantidad, id_movimiento)
+        self.cursor.execute(sql, valores)
+        self.db.commit()
+
+        if self.cursor.rowcount > 0:
+            return f"Movimiento con ID {id_movimiento} modificado correctamente."
+        else:
+            return f"No se encontró un movimiento con ID {id_movimiento}."
 
 # Instanciamos la aplicación
 app = GestorFinanzas()
@@ -71,7 +81,8 @@ while True:
     print("             1. Ingresar dinero")
     print("             2. Gastar dinero")
     print("             3. Ver saldo y movimientos")
-    print("             4. Salir")
+    print("             4. Modificar movimiento")
+    print("             5. Salir")
     opcion = input("Ingrese el número de la opción deseada: ")
 
     if opcion == "1":
@@ -114,8 +125,21 @@ while True:
         app.mostrar_movimientos()
 
     elif opcion == "4":
+        app.mostrar_movimientos()
+        try:
+            id_mod = int(input("Ingrese el ID del movimiento que desea modificar: "))
+            nueva_cat= input("Ingrese la nueva categoría: ").capitalize()
+            nuevo_tipo = input("Ingrese el nuevo tipo (ingreso/gasto): ").lower()
+            nueva_cant = float(input("Ingrese la nueva cantidad: "))
+            print(app.modificar_movimiento(id_mod, nuevo_tipo, nueva_cat, nueva_cant))
+        except ValueError:
+            print("Por favor, ingrese valores válidos para ID y cantidad.")
+            continue
+
+    elif opcion == "5":
         print("Gracias por usar la aplicación. ¡Hasta luego!")
         break
+
     else:
         print("Opción no válida. Por favor, intente nuevamente.")
 
