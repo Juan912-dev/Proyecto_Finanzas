@@ -330,7 +330,7 @@ class AplicacionGUI(ctk.CTk):
         def guardar_cambios():
             # Capturamos también el valor del menú desplegable
             nuevo_tipo = opcion_tipo.get()
-            nueva_cat = entrada_categoria.get().strip()
+            nueva_cat = entrada_categoria.get().strip().capitalize()
             
             if not nueva_cat:
                 label_error.configure(text="La categoría no puede estar vacía.")
