@@ -1,6 +1,8 @@
 #Aplicacion para gestionar las finanzas personales para registrar ingresos, gastos y presupuestos mensuales, categorizando cada movimiento para entender a donde va el dinero
 import datetime as dt
 import mysql.connector as mysql
+import customtkinter as ctk
+from tkinter import ttk
 
 class GestorFinanzas:
     def __init__(self):
@@ -72,74 +74,94 @@ class GestorFinanzas:
         else:
             return f"No se encontró un movimiento con ID {id_movimiento}."
 
-# Instanciamos la aplicación
-app = GestorFinanzas()
 
-while True:
-    print("Bienvenido a la aplicación de gestión de finanzas personales")
-    print("            Seleccione una opción:")
-    print("             1. Ingresar dinero")
-    print("             2. Gastar dinero")
-    print("             3. Ver saldo y movimientos")
-    print("             4. Modificar movimiento")
-    print("             5. Salir")
-    opcion = input("Ingrese el número de la opción deseada: ")
 
-    if opcion == "1":
-        try:
-            cantidad = float(input("Ingrese la cantidad de dinero a ingresar: "))
-        except ValueError:
-            print("Por favor, ingrese un número válido.")
-            continue
-        if cantidad <= 0:
-            print("La cantidad debe ser mayor a cero. Intente nuevamente.")
-            continue
-        categoria = input("Ingrese la categoría del ingreso: ").capitalize()
-        fecha_ingreso = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(app.registrar_movimiento("ingreso", categoria, cantidad, fecha_ingreso))
-        print("Dinero ingresado correctamente.")
+ctk.set_appearance_mode("Dark") # Opciones: "System", "Dark", "Light"
+ctk.set_default_color_theme("blue") # Opciones: "blue", "green", "dark-blue"
 
-    elif opcion == "2":
-        try:
-            cantidad = float(input("Ingrese la cantidad de dinero a gastar: "))
-        except ValueError:
-            print("Por favor, ingrese un número válido.")
-            continue
-        if cantidad <= 0:
-            print("La cantidad debe ser mayor a cero. Intente nuevamente.")
-            continue
-        categoria = input("Ingrese la categoría del gasto: ").capitalize()
-        fecha_gasto = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+class AplicacionGUI(ctk.CTk):
+    def __init__(self, gestor_bd):
+        super().__init__()
+        self.gestor = gestor_bd
         
-        # Validamos saldo leyendo directamente de la BD
-        saldo_actual = app.obtener_saldo()
-        if cantidad > saldo_actual:
-            print(f"No tiene suficiente saldo. Saldo disponible: ${saldo_actual}")
-            continue
+        self.title("Gestor de Finanzas Personales")
+        self.geometry("850x500")
+        
+        # Dividir la ventana: Columna 0 (Menú estrecho) | Columna 1 (Datos ancha)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
 
-        print(app.registrar_movimiento("gasto", categoria, cantidad, fecha_gasto))
-        print("Dinero gastado correctamente.")
+        # ==========================================
+        # PANEL LATERAL (Botones)
+        # ==========================================
+        self.frame_menu = ctk.CTkFrame(self, width=200, corner_radius=0)
+        self.frame_menu.grid(row=0, column=0, sticky="nsew")
+        
+        self.label_titulo = ctk.CTkLabel(self.frame_menu, text="Menú", font=ctk.CTkFont(size=20, weight="bold"))
+        self.label_titulo.grid(row=0, column=0, padx=20, pady=(20, 20))
 
-    elif opcion == "3":
-        app.mostrar_resumen()
-        app.mostrar_movimientos()
+        self.btn_ingreso = ctk.CTkButton(self.frame_menu, text="Ingresar Dinero", command=self.simular_ingreso)
+        self.btn_ingreso.grid(row=1, column=0, padx=20, pady=10)
 
-    elif opcion == "4":
-        app.mostrar_movimientos()
-        try:
-            id_mod = int(input("Ingrese el ID del movimiento que desea modificar: "))
-            nueva_cat= input("Ingrese la nueva categoría: ").capitalize()
-            nuevo_tipo = input("Ingrese el nuevo tipo (ingreso/gasto): ").lower()
-            nueva_cant = float(input("Ingrese la nueva cantidad: "))
-            print(app.modificar_movimiento(id_mod, nuevo_tipo, nueva_cat, nueva_cant))
-        except ValueError:
-            print("Por favor, ingrese valores válidos para ID y cantidad.")
-            continue
+        self.btn_gasto = ctk.CTkButton(self.frame_menu, text="Registrar Gasto", fg_color="#C0392B", hover_color="#922B21", command=self.simular_gasto)
+        self.btn_gasto.grid(row=2, column=0, padx=20, pady=10)
 
-    elif opcion == "5":
-        print("Gracias por usar la aplicación. ¡Hasta luego!")
-        break
+        # ==========================================
+        # PANEL PRINCIPAL (Saldo y Tabla)
+        # ==========================================
+        self.frame_datos = ctk.CTkFrame(self)
+        self.frame_datos.grid(row=0, column=1, padx=20, pady=20, sticky="nsew")
+        self.frame_datos.grid_rowconfigure(1, weight=1) # La tabla ocupará el espacio sobrante
 
-    else:
-        print("Opción no válida. Por favor, intente nuevamente.")
+        # Etiqueta de Saldo
+        self.label_saldo = ctk.CTkLabel(self.frame_datos, text="Saldo Actual: $0", font=ctk.CTkFont(size=28, weight="bold"))
+        self.label_saldo.grid(row=0, column=0, padx=20, pady=20, sticky="w")
 
+        # Tabla (Treeview)
+        columnas = ("ID", "Tipo", "Categoría", "Cantidad", "Fecha")
+        self.tabla = ttk.Treeview(self.frame_datos, columns=columnas, show="headings")
+        
+        # Configurar encabezados y anchos de columna
+        anchos = {"ID": 50, "Tipo": 80, "Categoría": 120, "Cantidad": 100, "Fecha": 150}
+        for col in columnas:
+            self.tabla.heading(col, text=col)
+            self.tabla.column(col, width=anchos[col], anchor="center")
+            
+        self.tabla.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="nsew")
+
+        # Cargar los datos desde MySQL al iniciar
+        self.actualizar_pantalla()
+
+    # ==========================================
+    # FUNCIONES DE LA INTERFAZ
+    # ==========================================
+    def actualizar_pantalla(self):
+        # 1. Actualizar el texto del saldo
+        saldo = self.gestor.obtener_saldo()
+        self.label_saldo.configure(text=f"Saldo Actual: ${saldo}")
+
+        # 2. Limpiar la tabla actual
+        for fila in self.tabla.get_children():
+            self.tabla.delete(fila)
+        
+        # 3. Traer datos de MySQL y llenar la tabla
+        self.gestor.cursor.execute("SELECT id, tipo, categoria, cantidad, fecha FROM transacciones ORDER BY fecha DESC")
+        movimientos = self.gestor.cursor.fetchall()
+        
+        for mov in movimientos:
+            # Reemplaza valores None por "Sin categoría" para la vista
+            mov_formateado = (mov[0], mov[1].capitalize(), mov[2] if mov[2] else "-", f"${mov[3]}", mov[4])
+            self.tabla.insert("", "end", values=mov_formateado)
+
+    def simular_ingreso(self):
+        print("Botón Ingreso presionado. Aquí abriremos una ventana para cargar datos.")
+
+    def simular_gasto(self):
+        print("Botón Gasto presionado. Aquí abriremos una ventana para cargar datos.")
+
+
+backend_db = GestorFinanzas()
+
+# Arrancamos la interfaz gráfica conectada al backend
+ventana = AplicacionGUI(backend_db)
+ventana.mainloop()
