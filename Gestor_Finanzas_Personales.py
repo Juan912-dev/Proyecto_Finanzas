@@ -149,7 +149,7 @@ class AplicacionGUI(ctk.CTk):
     def actualizar_pantalla(self):
         # 1. Actualizar el texto del saldo
         saldo = self.gestor.obtener_saldo()
-        self.label_saldo.configure(text=f"Saldo Actual: ${saldo}")
+        self.label_saldo.configure(text=f"Saldo Actual: ${saldo:,.2f}")
 
         # 2. Limpiar la tabla actual
         for fila in self.tabla.get_children():
@@ -161,7 +161,7 @@ class AplicacionGUI(ctk.CTk):
         
         for mov in movimientos:
             # Reemplaza valores None por "Sin categoría" para la vista
-            mov_formateado = (mov[0], mov[1].capitalize(), mov[2] if mov[2] else "-", f"${mov[3]}", mov[4])
+            mov_formateado = (mov[0], mov[1].capitalize(), mov[2] if mov[2] else "-", f"${mov[3]:,.2f}", mov[4])
             self.tabla.insert("", "end", values=mov_formateado)
 
     def simular_ingreso(self):
